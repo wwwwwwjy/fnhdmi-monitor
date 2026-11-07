@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/Ryder191/haloflux",
+  "commit": "016bef651c4f911f08039ba159d36a6f246ff5d2",
+  "input": "wallpaper/index.html",
+  "sha256": "8650361386bcc230b7349ea0ec32a4044b39e17aa13d53bd115c0f1471a590fa",
+  "license": "PolyForm Noncommercial 1.0.0 with Required Notices",
+  "modifications": "canvas-only extraction; real NAS telemetry; no audio, fonts, third-party requests or example data panels"
+}

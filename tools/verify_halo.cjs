@@ -1,0 +1,65 @@
+const {chromium}=require(process.env.PW_PATH),fs=require('fs'),path=require('path'),assert=require('node:assert/strict');
+(async()=>{
+ const cfg=JSON.parse(fs.readFileSync(process.argv[2])),base='http://127.0.0.1:'+cfg.port,secret=require('crypto').randomBytes(20).toString('hex');
+ const b=await chromium.launch({executablePath:'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',headless:true,args:['--no-sandbox','--no-proxy-server','--host-resolver-rules=MAP nas.preview.test 127.0.0.1']});
+ try{
+  const ctx=await b.newContext({viewport:{width:1366,height:768}}),r=await ctx.request.post(base+'/api/auth/setup',{headers:{'X-FNM-Request':'1'},data:{password:secret}});assert((await r.json()).ok);
+  const p=await ctx.newPage(),errors=[],bad=[];p.on('pageerror',e=>errors.push(e.message));p.on('response',r=>{if(r.status()>=400)bad.push([r.url(),r.status()])});
+  const save=async data=>{const r=await ctx.request.post(base+'/api/display/scene',{headers:{'X-FNM-Request':'1'},data});assert.equal(r.status(),200,await r.text());return r.json()};
+  const product=await ctx.newPage();await product.goto(base+'/launcher.html');
+  assert.equal(await product.locator('h1').textContent(),'飞牛HDMI动态监控');
+  await product.locator('header img').evaluate(img=>img.decode());
+  assert.equal(await product.locator('header img').evaluate(img=>img.naturalWidth),256);
+  assert.match(await product.locator('[aria-label="关于应用"]').textContent(),/汪同学/);
+  assert.match(await product.locator('[aria-label="关于应用"]').textContent(),/Misite/);
+  const productOut=path.resolve(__dirname,'../validation');fs.mkdirSync(productOut,{recursive:true});
+  await product.screenshot({path:productOut+'/product-launcher.png',fullPage:true});
+  await product.goto(base+'/#/settings');
+  await product.getByRole('link',{name:'软件更新',exact:true}).click();
+  await product.getByRole('link',{name:'查看成品版本',exact:true}).waitFor();
+  assert.equal(await product.getByText('自动更新',{exact:true}).count(),0);
+  await product.screenshot({path:productOut+'/product-update.png',fullPage:true});
+  await product.close();
+  await p.goto(base+'/');await p.waitForTimeout(800);assert(!p.url().includes('haloflux'));
+  const checkCursor=async()=>{
+   await p.mouse.move(100,100);
+   assert.notEqual(await p.locator('body').evaluate(e=>getComputedStyle(e).cursor),'none');
+   await p.waitForTimeout(5250);
+   assert.equal(await p.locator('body').evaluate(e=>getComputedStyle(e).cursor),'none');
+   assert(await p.locator('button').evaluateAll(es=>es.every(e=>getComputedStyle(e).cursor==='none')));
+   await p.mouse.move(110,110);
+   assert.notEqual(await p.locator('body').evaluate(e=>getComputedStyle(e).cursor),'none');
+  };
+  await checkCursor();
+  await save({mode:'haloflux'});await p.waitForURL('**/haloflux.html',{timeout:12000});
+  await p.waitForFunction(()=>window.HaloEngine?.stats().live===true,{timeout:10000});
+  await checkCursor();
+  await p.waitForTimeout(1800);const low=await p.evaluate(()=>HaloEngine.stats());
+  assert.equal(await p.locator('[data-metric="disk_read"] .value').textContent(),'20.0 MiB/s');
+  assert.match(await p.locator('[data-metric="power"] .source').textContent(),/估算/);
+  for(const box of await p.locator('.metric').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return [r.top,r.bottom,r.right]})))assert(box[0]>=0&&box[1]<=768&&box[2]<=1366);
+  const out=path.resolve(__dirname,'../validation');fs.mkdirSync(out,{recursive:true});await p.screenshot({path:out+'/haloflux-live-1366.png'});
+  let sample=JSON.parse(fs.readFileSync(cfg.sample));sample.cpu.percent=96;sample.cpu.temp=91;sample.temp.cpu=91;sample.diskio[0].read_rate=180*2**20;sample.net[0].rx_rate=110*2**20;
+  fs.writeFileSync(cfg.sample,JSON.stringify(sample));await p.waitForFunction(()=>document.querySelector('[data-metric="cpu"] .value').textContent==='96 %');await p.waitForTimeout(1700);
+  const high=await p.evaluate(()=>HaloEngine.stats());assert(high.parameters.ringSpeed>low.parameters.ringSpeed);assert(high.parameters.cometSpeed>low.parameters.cometSpeed);assert(high.limited);
+  await p.getByRole('button',{name:'联动设置',exact:true}).click();await p.locator('select[name="fps"]').selectOption('15');await p.locator('input[name="read_mib"]').fill('400');await p.getByRole('button',{name:'保存设置',exact:true}).click();await p.locator('dialog').waitFor({state:'hidden'});
+  assert.equal(JSON.parse(fs.readFileSync(cfg.data+'/display-scene.json')).settings.read_mib,400);
+  sample.gpu=[{pci:'0000:01:00.0',name:'共享显存核显',util:null,temp:null,mem_used:null,mem_total:null,shared_memory:true}];fs.writeFileSync(cfg.sample,JSON.stringify(sample));
+  await p.waitForFunction(()=>document.querySelector('[data-metric="gpu"] .value').textContent==='—');assert.equal(await p.locator('[data-metric="gpu_temp"] .value').textContent(),'—');assert.equal(await p.locator('[data-metric="vram"] .value').textContent(),'—');
+  sample.ts=Date.now()/1000-999;fs.writeFileSync(cfg.sample,JSON.stringify(sample));await p.waitForFunction(()=>document.body.classList.contains('offline'));assert.equal(await p.evaluate(()=>HaloEngine.stats().live),false);
+  assert.equal(await p.locator('[data-metric="cpu"] .value').textContent(),'—');
+  delete sample.ts;sample.cpu.percent=30;fs.writeFileSync(cfg.sample,JSON.stringify(sample));await p.waitForFunction(()=>!document.body.classList.contains('offline'));
+  const scene=await (await ctx.request.get(base+'/api/display/scene')).json();assert.equal(scene.observed,'haloflux');
+  // A LAN-style preview hostname must not follow the global HDMI selection.
+  const previewCtx=await b.newContext({viewport:{width:1366,height:768}});await previewCtx.addCookies((await ctx.cookies(base)).map(c=>({...c,domain:'nas.preview.test'})));
+  const preview=await previewCtx.newPage();await preview.goto('http://nas.preview.test:'+cfg.port+'/haloflux.html');await preview.waitForFunction(()=>!!window.HaloEngine);
+  await save({mode:'monitor'});await p.waitForURL(/\/#\/overview/,{timeout:12000});await preview.waitForTimeout(5500);assert(preview.url().includes('haloflux.html'));assert.notEqual(await preview.locator('body').evaluate(e=>getComputedStyle(e).cursor),'none');await previewCtx.close();
+  const anon=await b.newContext();assert.equal((await anon.request.get(base+'/api/display/telemetry')).status(),401);assert.equal((await anon.request.post(base+'/api/display/scene',{headers:{'X-FNM-Request':'1'},data:{mode:'haloflux'}})).status(),401);await anon.close();
+  assert.equal((await ctx.request.post(base+'/api/display/scene',{data:{mode:'haloflux'}})).status(),403);
+  assert.equal((await ctx.request.post(base+'/api/display/scene',{headers:{'X-FNM-Request':'1'},data:{settings:{fps:999}}})).status(),400);
+  assert.equal((await ctx.request.get(base+'/haloflux/not-a-file.js')).status(),404);
+  assert.deepEqual(errors,[]);assert.deepEqual(bad,[]);
+  console.log('PASS: both HDMI scenes hide idle cursor after 5 seconds, including buttons; movement restores cursor; LAN preview unaffected');
+  console.log('PASS: authenticated real HALOFLUX render; all 12 metrics visible; load changes animation; high-CPU protection; missing/stale telemetry neutral; persistent settings; local HDMI switches both ways and LAN preview stays independent; auth/CSRF/validation enforced');
+ }finally{await b.close()}
+})().catch(e=>{console.error(e);process.exit(1)});

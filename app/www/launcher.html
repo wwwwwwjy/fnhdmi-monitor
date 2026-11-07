@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>飞牛HDMI动态监控 · 控制面板</title>
+  <link rel="icon" href="/product-icon.png">
+  <style>
+    :root{font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242b;background:#f3f5f8;--card:#fff;--line:#e4e8ee;--muted:#687386;--blue:#2864dc;--green:#138a54;--orange:#a45c00}
+    @media(prefers-color-scheme:dark){:root{color:#e8edf5;background:#11151b;--card:#1c222b;--line:#303946;--muted:#a4afbf;--blue:#81a9ff;--green:#63d49a;--orange:#ffc36d}}
+    *{box-sizing:border-box}body{margin:0;padding:26px 16px 40px}.wrap{max-width:780px;margin:auto}header{margin:0 0 20px}h1{font-size:24px;margin:0 0 4px}p{margin:0 0 12px}.sub,.hint{color:var(--muted);font-size:13px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0;box-shadow:0 3px 12px #00000008}.title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}h2{font-size:17px;margin:0}.state{font-size:12px;font-weight:650;border-radius:20px;padding:4px 10px;background:#eef1f5;color:#566174;white-space:nowrap}.state.on{background:#e5f5ec;color:#14713f}.state.warn{background:#fff0d9;color:#875000}@media(prefers-color-scheme:dark){.state{background:#303946;color:#d3dbea}.state.on{background:#153a2b;color:#8be1b0}.state.warn{background:#49361b;color:#ffd28a}}
+    .actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:15px}button,.link{appearance:none;border:1px solid var(--line);background:var(--card);color:inherit;border-radius:10px;padding:9px 14px;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}button.console{background:#16834b!important;border-color:#16834b!important;color:white}button.primary,.link.primary{background:var(--blue);border-color:var(--blue);color:white}button.danger{border-color:#dc5555;color:#b4232c}button:disabled{opacity:.45;cursor:not-allowed}button:hover:not(:disabled),.link:hover{filter:brightness(.96)}.notice{border-radius:10px;background:#edf3ff;padding:11px 13px;margin-top:13px;color:#264b91;font-size:13px;overflow-wrap:anywhere}@media(prefers-color-scheme:dark){.notice{background:#202e48;color:#c4d5ff}button.danger{color:#ff9696;border-color:#a74d4d}}.notice.warn{background:#fff3df;color:#724700}@media(prefers-color-scheme:dark){.notice.warn{background:#3b2e19;color:#ffd28a}}
+    code,pre{font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}pre{white-space:pre-wrap;word-break:break-word;background:#f2f4f7;border-radius:9px;padding:12px;margin:8px 0 4px;color:#293344}@media(prefers-color-scheme:dark){pre{background:#11151b;color:#d4dfef}}.steps{margin:10px 0 0;padding-left:20px}.steps li{margin:5px 0}.foot{margin-top:20px;text-align:center;color:var(--muted);font-size:12px}#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#20242b;color:#fff;padding:9px 14px;border-radius:10px;display:none;max-width:90vw}a{color:var(--blue)}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header style="display:flex;align-items:center;gap:14px"><img src="/product-icon.png" width="64" height="64" alt=""><div><h1>飞牛HDMI动态监控</h1><p class="sub">3.0.0 · 首个成品版 · 汪同学</p></div></header>
+    <section class="card">
+      <div class="title"><h2>HDMI 本地显示</h2><span id="hdmiState" class="state">读取中</span></div>
+      <p class="hint">单独选择当前显示器画面和下次开机的默认画面。切屏前请保存命令行中正在编辑的内容。</p>
+      <div id="hdmiInfo" class="notice" hidden></div>
+      <div class="actions"><button id="setupHdmi" hidden>接入已有配置</button><button id="toggleHdmi" class="primary" disabled>读取状态…</button><button id="boot" disabled>读取开机设置…</button></div>
+      <div class="actions"><button id="env">安装 HDMI 显示环境</button><button id="uninstallHdmi" hidden></button></div>
+      <div class="notice" id="sceneBox">
+        <strong>HDMI 显示内容</strong>
+        <div class="actions"><button id="sceneMonitor">飞牛监控</button><button id="sceneHalo">HALOFLUX 数据动效</button><a class="link" href="/haloflux.html" target="_blank" rel="noopener">预览 / 联动设置</a></div>
+        <p id="sceneStatus" role="status">读取中…</p>
+        <small>选择会保存为下次开机的画面。命令行界面下请先点「显示所选画面」。首次升级后，请在 VNC 中点一次「刷新远端」，启用自动切换。</small>
+      </div>
+      <div id="review" class="notice warn" hidden><p id="reviewText"></p><button id="approve">确认执行</button> <button id="cancel">取消</button></div>
+      <section id="task" hidden aria-label="操作进度" class="notice">
+        <strong id="taskTitle"></strong><p id="taskTime"></p>
+        <progress id="taskBar" aria-label="正在运行"></progress>
+        <pre id="taskLog" style="max-height:13em;overflow:auto" hidden></pre>
+        <p id="taskEnd" role="status"></p>
+      </section>
+      <div id="result" class="notice" role="status" hidden></div>
+    </section>
+    <section class="card">
+      <div class="title"><h2>VNC 远程控制</h2><span id="vncState" class="state">读取中</span></div>
+      <p class="hint">直接在浏览器中查看并操作 HDMI 上的同一个监控画面，支持鼠标和键盘。</p>
+      <div id="vncInfo" class="notice" hidden></div>
+      <div class="actions"><button id="vncInstall">安装 VNC 远程控制</button><button id="toggleVnc" class="primary" disabled>启动 VNC</button><a id="remote" class="link primary" href="/remote.html" target="_blank" rel="noopener" hidden>开始控制</a><button id="vncClean">清除旧版 VNC 配置</button></div>
+      <div id="vncSteps" class="notice" hidden></div>
+      <div class="actions"><a class="link" href="/" target="_blank" rel="noopener noreferrer">打开本地监控网站</a></div>
+    </section>
+    <section class="card" aria-label="关于应用">
+      <h2>关于飞牛HDMI动态监控</h2>
+      <p class="hint" style="margin-top:10px">由汪同学开发与集成，为 NAS 提供 HDMI 大屏、浏览器远控和硬件数据联动动效。</p>
+      <p class="hint">内置飞牛监控 fnMonitor，感谢开发者 <a href="https://github.com/MisiteQ/fnmonitor" target="_blank" rel="noopener">Misite齊（MisiteQ）</a> 与贡献者 iqiuzixuan。监控核心基于 fnMonitor 2.41.4，保留原作 MIT 许可。</p>
+      <p class="hint">动效修改自 <a href="https://github.com/Ryder191/haloflux" target="_blank" rel="noopener">HALOFLUX by Ryder191（RYDER CODE / Ms MAIKEBAIs CAT）</a>，仅限非商业使用。</p>
+      <p class="hint">社区衍生作品。后续更新请下载本项目成品包，在飞牛应用中心覆盖升级。</p>
+      <a class="link" href="https://github.com/wwwwwwjy/fnhdmi-monitor" target="_blank" rel="noopener">项目主页与版本下载</a>
+    </section>
+    <p class="foot">控制 HDMI / VNC 前，请先在监控网站设置中启用登录口令。</p>
+  </main>
+  <div id="toast" role="status"></div>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    let state = null, busy = false;
+    const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function toast(s){const e=$('toast');e.textContent=s;e.style.display='block';setTimeout(()=>e.style.display='none',3200)}
+    function setState(el,text,kind){el.textContent=text;el.className='state'+(kind?' '+kind:'')}
+    function info(id,text,warn){const e=$(id);e.textContent=text||'';e.hidden=!text;e.className='notice'+(warn?' warn':'')}
+    async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json','X-FNM-Request':'1'}:{},body:body?JSON.stringify(body):undefined});let j={};try{j=await r.json()}catch(_){}if(r.status===401){location.href='/login.html?next=%2Flauncher.html';throw Error('登录状态已过期，请重新登录。')}if(!r.ok)throw Error(j.message||j.error||('请求失败（'+r.status+'）'));return j}
+    function render(s){state=s;drawJob(s.job);const locked=s.control_requires_login||s.job?.state==='running';const active=s.hdmi_running;const separate=active&&s.display_vt&&s.display_vt!=='tty1';
+      setState($('hdmiState'),separate?(s.active_vt===s.display_vt?'当前：图形界面':s.active_vt==='tty1'?'当前：飞牛命令行界面':'当前：其他本地界面'):active?'图形服务运行中':s.hdmi_uninstalled?'配置已卸载':s.integrated?'命令行':'待配置',active?'on':'');
+      $('setupHdmi').hidden=!!separate||!s.hdmi_uninstalled&&(!s.compatible||s.integrated);
+      $('setupHdmi').textContent=s.hdmi_uninstalled?'从备份重新安装':'接入已有配置';
+      $('setupHdmi').disabled=$('env').disabled=locked||busy;
+      $('toggleHdmi').disabled=locked||busy||(!separate&&!s.integrated&&!(active&&s.hdmi_uninstalled));
+      $('toggleHdmi').textContent=(separate?s.active_vt===s.display_vt:active)?'返回飞牛命令行界面':'显示所选画面';
+      $('boot').textContent=s.hdmi_enabled?'关闭图形界面开机自启':'开启图形界面开机自启';
+      $('boot').disabled=locked||busy||!s.integrated;
+      $('uninstallHdmi').hidden=true;
+      $('env').textContent=s.hdmi_managed||s.integrated?'卸载 HDMI 显示环境':'安装 HDMI 显示环境';
+      $('env').className=s.hdmi_managed||s.integrated?'danger':'';
+      $('toggleHdmi').className='primary'+((separate?s.active_vt===s.display_vt:active)?' console':'');
+      info('hdmiInfo',s.control_requires_login?'请先打开监控网站，在设置中启用登录口令，然后重新登录本面板。':
+        separate?'你可以随时切换画面，监控网页会继续运行。':
+        s.integrated?'下次开机：'+(s.hdmi_enabled?'所选图形画面':'命令行')+'。当前配置：'+s.profile:
+        s.hdmi_uninstalled?'启动配置已卸载。如有旧版备份可以重新安装。':
+        s.compatible?'检测到已有 tty1 启动脚本，点击「接入已有配置」。':'未识别旧版配置；可安装环境。已有自定义启动方式时，请保留并运行诊断工具。',locked);
+      setState($('vncState'),s.browser_running?'运行中':s.browser_installed?'已安装':'未安装',s.browser_running?'on':'');
+      $('vncInstall').textContent=s.browser_installed?'卸载 VNC 远程控制':'安装 VNC 远程控制';
+      $('vncInstall').className=s.browser_installed?'danger':'';
+      $('vncInstall').disabled=$('vncClean').disabled=locked||busy;
+      $('toggleVnc').disabled=locked||busy||!s.browser_installed||(!s.browser_running&&!active);
+      $('toggleVnc').textContent=s.browser_running?'停止 VNC':'启动 VNC';
+      $('remote').hidden=!s.browser_running;
+      info('vncInfo',s.browser_running?'已就绪，点击「开始控制」打开网页。':s.browser_installed?'显示飞牛监控界面后，点击启动 VNC。':'安装后即可使用网页远控，无需 Mac 屏幕共享或 SSH 隧道。');
+      info('vncSteps','');
+    }
+    async function refresh(){try{render(await api('/api/display/status'))}catch(e){state=null;$('vncInstall').disabled=$('vncClean').disabled=true;$('boot').disabled=$('env').disabled=true;info('hdmiInfo',e.message,true);setState($('hdmiState'),'无法读取','warn');$('toggleHdmi').disabled=$('toggleVnc').disabled=$('setupHdmi').disabled=$('uninstallHdmi').disabled=true}}
+    const labels={install_env:'安装 HDMI 显示环境',install_hdmi:'安装 HDMI 显示环境',install_vnc:'安装 VNC 远程控制',uninstall_vnc:'卸载 VNC 远程控制',clean_vnc:'清除旧版 VNC 配置',show_console:'切换到命令行',show_desktop:'显示所选画面',hdmi_on:'启动监控画面',hdmi_off:'返回命令行',boot_on:'开启自启',boot_off:'关闭自启',setup_hdmi:'接入显示配置',uninstall_hdmi:'卸载显示配置',vnc_on:'启动远程控制',vnc_off:'停止远程控制'};
+    function drawJob(j){
+      $('task').hidden=!j;if(!j)return;
+      const active=j.state==='running', t=j.elapsed||0, done=j.state==='done';
+      $('taskTitle').textContent=(active?'进行中':done?'已完成':'未完成')+' · '+(labels[j.action]||'显示操作');
+      $('taskTime').textContent='已用 '+Math.floor(t/60)+' 分 '+t%60+' 秒'+(active?(['install_env','install_hdmi','install_vnc','uninstall_vnc','uninstall_hdmi'].includes(j.action)?' · 下载和安装通常需要几分钟，取决于软件源和网速。':' · 正在等 NAS 确认结果。'):'');
+      $('taskBar').hidden=!active;
+      const log=$('taskLog'), text=(j.lines||[]).join('\n');log.hidden=!text;
+      if(log.textContent!==text){const tail=log.scrollTop+log.clientHeight>=log.scrollHeight-8;log.textContent=text;if(tail)log.scrollTop=log.scrollHeight}
+      $('taskEnd').textContent=active?(j.stage||'正在执行…'):j.message;$('task').className='notice'+(j.state==='error'?' warn':'');
+    }
+    async function act(action){if(busy||!state||state.control_requires_login||state.job?.state==='running')return;$('cancel').click();busy=true;render(state);info('result','正在提交…');try{const j=await api('/api/display/action',{action,background:true});info('result','');render(j.status)}catch(e){info('result',e.message,true)}finally{busy=false;await refresh()}}
+    $('env').disabled=true;
+    let pending=null;
+    function review(action,msg){if(busy||state?.job?.state==='running')return;pending=action;$('reviewText').textContent=msg;$('review').hidden=false;$('cancel').focus()}
+    $('cancel').onclick=()=>{pending=null;$('review').hidden=true};
+    $('approve').onclick=()=>{let a=pending;$('cancel').click();if(a)act(a)};
+    $('env').onclick=()=>review(state.hdmi_managed||state.integrated?'uninstall_hdmi':'install_hdmi',state.hdmi_managed||state.integrated?'卸载本功能的显示配置并返回命令行；只移除本功能新增且不被其他功能使用的软件。':'安装 HDMI 显示所需环境，已有软件和个人配置会保留。');
+    $('vncInstall').onclick=()=>review(state.browser_installed?'uninstall_vnc':'install_vnc',state.browser_installed?'停止远控连接，清除本功能的服务和安装记录，并清理本功能新增的独占依赖。':'安装 VNC 浏览器远控。只允许登录监控网站后连接，不开放 VNC 网络端口。');
+    $('vncClean').onclick=()=>review('clean_vnc','停止并清除本应用的新旧 VNC 服务和运行配置。其他软件以及原先手动创建的个人 VNC 密码会保留。');
+    $('boot').onclick=()=>act(state.hdmi_enabled?'boot_off':'boot_on');
+    $('setupHdmi').onclick=()=>act('setup_hdmi');$('toggleHdmi').onclick=()=>act(state.hdmi_running&&state.display_vt&&state.display_vt!=='tty1'?(state.active_vt===state.display_vt?'show_console':'show_desktop'):state.hdmi_running?'hdmi_off':'hdmi_on');$('uninstallHdmi').onclick=()=>review('uninstall_hdmi','移除受支持的 HDMI 启动配置，保留备份并切回本地命令行。不会删除监控历史或系统软件包。');$('toggleVnc').onclick=()=>act(state&&state.browser_running?'vnc_off':'vnc_on');
+    async function sceneRefresh(){try{const s=await api('/api/display/scene');
+      $('sceneMonitor').disabled=$('sceneHalo').disabled=!state||state.control_requires_login;
+      $('sceneMonitor').className=s.mode==='monitor'?'primary':'';$('sceneHalo').className=s.mode==='haloflux'?'primary':'';
+      const name=m=>m==='haloflux'?'HALOFLUX':'飞牛监控';
+      $('sceneStatus').textContent=(s.warning?s.warning+'。':'')+'已选择：'+name(s.mode)+'。'+(s.connected?'NAS 网页已连接，当前内容：'+name(s.observed)+(s.observed===s.mode?'。':'，正在切换…'):'等待 NAS 网页连接；首次升级请在 VNC 中刷新远端网页。');
+    }catch(e){$('sceneStatus').textContent=e.message;$('sceneMonitor').disabled=$('sceneHalo').disabled=true}}
+    async function chooseScene(mode){$('sceneMonitor').disabled=$('sceneHalo').disabled=true;try{await api('/api/display/scene',{mode});await sceneRefresh()}catch(e){toast(e.message)}}
+    $('sceneMonitor').onclick=()=>chooseScene('monitor');$('sceneHalo').onclick=()=>chooseScene('haloflux');
+    async function poll(){if(!busy){await refresh();await sceneRefresh()}setTimeout(poll,state?.job?.state==='running'?1000:4000)} poll();
+  </script>
+</body>
+</html>

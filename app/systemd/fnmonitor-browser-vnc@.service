@@ -1,0 +1,14 @@
+[Unit]
+Description=fnMonitor browser control of the physical display
+After=network.target
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=~
+RuntimeDirectory=fnmonitor-browser-vnc
+RuntimeDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/python3 -B "@APP_DIR@/vnc_session.py"
+KillMode=control-group
+TimeoutStopSec=5
+Restart=no

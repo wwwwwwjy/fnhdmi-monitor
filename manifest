@@ -1,0 +1,16 @@
+appname                    = fnmonitor
+version = 3.0.0
+display_name = 飞牛HDMI动态监控
+desc = <b>飞牛HDMI动态监控</b>，由汪同学开发与集成。让 NAS 的 HDMI 屏幕成为实时监控与动态可视化大屏。<br><br>支持一键安装／卸载 HDMI 显示环境、命令行与监控画面切换、开机默认画面设置、浏览器 VNC 鼠标键盘远程控制、一屏自适应和鼠标闲置隐藏。内置飞牛监控 fnMonitor，可查看 CPU、GPU、内存、显存、温度、硬盘、网络、功耗、容器与历史趋势；支持切换 HALOFLUX，并让硬件数据驱动光环、光束与粒子动效。<br><br>感谢飞牛监控 fnMonitor 开发者 Misite齊（MisiteQ）与界面贡献者 iqiuzixuan。监控核心基于 fnMonitor 2.41.4，保留原作者署名及 MIT 许可。动效修改自 HALOFLUX by Ryder191（RYDER CODE / Ms MAIKEBAIs CAT），保留原许可，仅限非商业使用。本项目为社区衍生作品。
+platform                   = x86
+source                     = thirdparty
+maintainer = 汪同学
+distributor = 汪同学
+os_min_version             = 0.9.0
+ctl_stop                   = true
+desktop_uidir              = ui
+desktop_applaunchname      = fnmonitor.Application
+service_port               = 8777
+checkport                  = true
+disable_authorization_path = false
+changelog = 首个成品版本 3.0.0：统一名称、图标与汪同学署名；集成 HDMI 显示管理、浏览器 VNC、HALOFLUX 硬件联动、一屏显示和鼠标自动隐藏；保留已有监控历史与配置。

@@ -1,0 +1,40 @@
+#!/bin/bash
+# fnOS stops only this application's service before this hook.
+set -eu
+python3 - <<'PY'
+import datetime,json,os,shutil,sqlite3,stat,time
+from pathlib import Path
+base=Path(os.environ["TRIM_PKGVAR"]).resolve()
+if not base.is_dir():raise SystemExit("找不到现有应用数据目录，未继续升级")
+cfg=base/"config.json"
+config=json.loads(cfg.read_text()) if cfg.exists() else {}
+custom=str(config.get("data_dir") or "").strip()
+locations=[base,base/"localdata"]
+if custom and os.path.isabs(custom):locations.append(Path(custom).resolve())
+backup=base/".display-upgrade-backups"/("3.0.0-"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
+backup.mkdir(parents=True,mode=0o700)
+os.chmod(backup.parent,0o700)
+mapping=[]
+for loc in dict.fromkeys(locations):
+ if not loc.is_dir():continue
+ files=sorted(set(loc.glob("*.json"))|set(loc.glob("*.db")))
+ cursor=loc/"cursor"
+ if cursor.is_dir():files+=list(cursor.rglob("*.json"))
+ for src in files:
+  if not src.is_file():continue
+  dst=backup/("%03d-"%len(mapping)+src.name)
+  if src.suffix==".db":
+   started=time.monotonic()
+   def progress(status,left,total):
+    if time.monotonic()-started>120:raise RuntimeError("数据库备份超过两分钟，未继续升级")
+   with sqlite3.connect(src.resolve().as_uri()+"?mode=ro",uri=True,timeout=10) as original, sqlite3.connect(dst) as copy:
+    original.backup(copy,pages=256,progress=progress)
+    if copy.execute("PRAGMA quick_check").fetchone()[0]!="ok":raise RuntimeError("数据库备份校验失败")
+  else:shutil.copyfile(src,dst)
+  os.chmod(dst,0o600);mapping.append({"source":str(src),"backup":dst.name})
+manifest=Path(os.environ.get("TRIM_APPDEST","/nonexistent"))/"manifest"
+if manifest.is_file():shutil.copyfile(manifest,backup/"previous-manifest")
+(backup/"index.json").write_text(json.dumps(mapping,ensure_ascii=False,indent=2))
+os.chmod(backup/"index.json",0o600)
+print("升级前备份完成："+str(backup))
+PY

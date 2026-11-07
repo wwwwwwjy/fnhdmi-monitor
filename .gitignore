@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.fpk
+.DS_Store
+validation/
+dist/
+localdata/
+*.db
+*.db-shm
+*.db-wal
+sessions.json
+.env
+.env.*
