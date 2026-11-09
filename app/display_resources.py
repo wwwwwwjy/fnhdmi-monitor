@@ -84,6 +84,83 @@ def uninstall(feature):
     try:ROOT.rmdir()
     except OSError:pass
 
+def uninstall_all():
+    """Application removal: purge the union, so HDMI/VNC cannot retain each other.
+
+    Keep packages required by another application. No autoremove and no guessing
+    ownership of dependencies installed manually before our receipts existed.
+    Receipts survive any actual purge failure, allowing uninstall_init to retry.
+    """
+    if ROOT.is_symlink() or any((ROOT/n).is_symlink() for n in ("hdmi.json","vnc.json")):
+        raise RuntimeError("安装记录是符号链接，未执行依赖清理")
+    if ROOT.exists():
+        unexpected={p.name for p in ROOT.iterdir()}-{"hdmi.json","vnc.json","hdmi.tmp","vnc.tmp"}
+        if unexpected:raise RuntimeError("安装记录目录有未识别文件，未删除："+", ".join(sorted(unexpected)))
+    receipts={f:read(f) for f in ("hdmi","vnc")}
+    if not any(receipts.values()):
+        print("没有本应用新增依赖的安装记录；保留原有系统软件。",flush=True)
+        if ROOT.exists():
+            if any(ROOT.iterdir()):raise RuntimeError("缺少完整安装记录，保留临时清单以便恢复")
+            ROOT.rmdir()
+        return
+    owned=set()
+    for receipt in receipts.values():
+        for package in (receipt or {}).get("packages",[]):
+            import re
+            if not isinstance(package,str) or not re.fullmatch(r"[a-z0-9][a-z0-9+.-]*(?::[a-z0-9]+)?",package):
+                raise RuntimeError("依赖安装记录包含无效包名，已停止")
+            owned.add(package)
+    rows=run(["dpkg-query","-W","-f=${binary:Package} ${db:Status-Status}\n"],True)
+    present={l.split()[0] for l in rows.splitlines() if len(l.split())==2 and l.split()[1]!="not-installed"}
+    packages=owned & present  # Include config-files left by an interrupted purge.
+    normal=lambda names:{n.split(":")[0] for n in names}
+    def simulated(names):
+        plan=run(["apt-get","-s","purge",*sorted(names)],True)
+        return {line.split()[1] for line in plan.splitlines() if line.startswith(("Remv ","Purg "))}
+    retained=set()
+    while packages:
+        if not (normal(simulated(packages))-normal(packages)):
+            break
+        unsafe={p for p in packages if normal(simulated({p}))-normal(packages)}
+        if not unsafe:
+            # Alternative dependencies can be safe individually but unsafe together.
+            # Keep the ambiguous group rather than remove a user's unrelated app.
+            unsafe=set(packages)
+        retained|=unsafe
+        packages-=unsafe
+    if retained:
+        print("[保留共享依赖] 其他软件仍需要："+", ".join(sorted(retained)),flush=True)
+    if packages:
+        print("[阶段] 卸载本应用新增依赖（含残余包配置）",flush=True)
+        run(["apt-get","-o","DPkg::Lock::Timeout=90","-y","purge",*sorted(packages)])
+        after=run(["dpkg-query","-W","-f=${binary:Package} ${db:Status-Status}\n"],True)
+        remaining={l.split()[0] for l in after.splitlines() if len(l.split())==2 and l.split()[1]!="not-installed"}
+        if normal(remaining)&normal(packages):
+            raise RuntimeError("依赖包尚未清理完成，安装记录已保留")
+    receipt=receipts.get("hdmi") or {}
+    if receipt.get("account_preexisting") is False:
+        try:
+            account=pwd.getpwnam("fnmkiosk")
+        except KeyError:
+            account=None
+        if account:
+            if account.pw_dir!="/var/lib/fnmonitor-kiosk" or not account.pw_uid:
+                raise RuntimeError("专用账号已变化，未删除")
+            run(["userdel","--remove","fnmkiosk"])
+        # The dedicated home remains ours even if a prior userdel removed the account.
+        home=ROOT.parent/"fnmonitor-kiosk"
+        if home.is_symlink():
+            home.unlink()
+        elif home.exists():
+            import shutil
+            shutil.rmtree(home)
+    for feature,receipt in receipts.items():
+        if receipt is not None:(ROOT/(feature+".json")).unlink(missing_ok=True)
+        (ROOT/(feature+".tmp")).unlink(missing_ok=True)
+    try:ROOT.rmdir()
+    except FileNotFoundError:pass
+    except OSError:raise RuntimeError("安装记录目录有未识别的文件，未删除；请检查后重试")
+
 if __name__=="__main__":
     import sys
     try:

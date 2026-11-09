@@ -44,6 +44,33 @@ const {chromium}=require(process.env.PW_PATH),fs=require('fs'),path=require('pat
   const high=await p.evaluate(()=>HaloEngine.stats());assert(high.parameters.ringSpeed>low.parameters.ringSpeed);assert(high.parameters.cometSpeed>low.parameters.cometSpeed);assert(high.limited);
   await p.getByRole('button',{name:'联动设置',exact:true}).click();await p.locator('select[name="fps"]').selectOption('15');await p.locator('input[name="read_mib"]').fill('400');await p.getByRole('button',{name:'保存设置',exact:true}).click();await p.locator('dialog').waitFor({state:'hidden'});
   assert.equal(JSON.parse(fs.readFileSync(cfg.data+'/display-scene.json')).settings.read_mib,400);
+  const persisted=JSON.parse(fs.readFileSync(cfg.data+'/display-scene.json'));
+  await p.locator('#settings').click();
+  const defaults=(await (await ctx.request.get(base+'/api/display/telemetry')).json()).defaults;
+  assert.equal(await p.locator('[data-reset]').count(),Object.keys(defaults).length);
+  await p.locator('[name="title"]').fill('汪同学的 NAS');
+  for(const [name,value] of Object.entries({disk:'sda',net:'eth0',gpu:'0000:01:00.0',quality:'balanced',fps:'15'}))await p.locator('[name="'+name+'"]').selectOption(value);
+  for(const name of ['read_mib','write_mib','net_mib','power_w','cpu_hot','gpu_hot','intensity'])await p.locator('[name="'+name+'"]').fill(String(Number(defaults[name])+.1));
+  const values=()=>p.locator('#form').evaluate(f=>Object.fromEntries(new FormData(f)));
+  for(const [name,value] of Object.entries(defaults)){
+   const before=await values();await p.locator('[data-reset="'+name+'"]').click();const after=await values();
+   assert.equal(after[name],String(value));for(const key of Object.keys(before))if(key!==name)assert.equal(after[key],before[key]);
+  }
+  assert.deepEqual(JSON.parse(fs.readFileSync(cfg.data+'/display-scene.json')),persisted);
+  await p.locator('#close').click();await p.locator('#settings').click();assert.equal(await p.locator('[name="read_mib"]').inputValue(),'400');
+  await p.locator('[name="title"]').fill('<img src=x>');await p.getByRole('button',{name:'保存设置',exact:true}).click();await p.locator('dialog').waitFor({state:'hidden'});
+  await p.waitForFunction(()=>document.getElementById('brandTitle').textContent==='<img src=x>');assert.equal(await p.locator('#brandTitle img').count(),0);
+  await p.reload();await p.waitForFunction(()=>document.getElementById('brandTitle').textContent==='<img src=x>');
+  await p.locator('#settings').click();await p.locator('[data-reset="title"]').click();await p.getByRole('button',{name:'保存设置',exact:true}).click();await p.locator('dialog').waitFor({state:'hidden'});
+  await p.waitForFunction(()=>document.getElementById('brandTitle').textContent==='HALOFLUX');
+  await p.locator('#settings').click();await p.locator('[name="title"]').fill('汪同学的 NAS');await p.getByRole('button',{name:'保存设置',exact:true}).click();await p.locator('dialog').waitFor({state:'hidden'});
+  await p.waitForFunction(()=>document.getElementById('brandTitle').textContent==='汪同学的 NAS');
+  await p.locator('#settings').click();await p.screenshot({path:out+'/haloflux-settings-308.png'});
+  await p.setViewportSize({width:390,height:844});
+  assert(await p.locator('#dialog').evaluate(e=>e.scrollWidth<=e.clientWidth+1));
+  for(const r of await p.locator('.fieldControl').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right}})))assert(r.left>=0&&r.right<=390);
+  await p.screenshot({path:out+'/haloflux-settings-308-mobile.png'});await p.locator('#close').click();await p.setViewportSize({width:1366,height:768});
+  console.log('PASS: all 13 individual defaults reset only their own field; cancel preserves saved values; title persists, renders as text, resets to HALOFLUX; mobile settings fit');
   sample.gpu=[{pci:'0000:01:00.0',name:'共享显存核显',util:null,temp:null,mem_used:null,mem_total:null,shared_memory:true}];fs.writeFileSync(cfg.sample,JSON.stringify(sample));
   await p.waitForFunction(()=>document.querySelector('[data-metric="gpu"] .value').textContent==='—');assert.equal(await p.locator('[data-metric="gpu_temp"] .value').textContent(),'—');assert.equal(await p.locator('[data-metric="vram"] .value').textContent(),'—');
   sample.ts=Date.now()/1000-999;fs.writeFileSync(cfg.sample,JSON.stringify(sample));await p.waitForFunction(()=>document.body.classList.contains('offline'));assert.equal(await p.evaluate(()=>HaloEngine.stats().live),false);

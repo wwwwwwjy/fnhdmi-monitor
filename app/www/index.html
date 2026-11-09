@@ -6013,7 +6013,7 @@ card._sync = () => { draw(); $$('.set-row', x.rows).forEach(r => r._sync && r._s
 draw();
 }
 function renderAbout(card) {
-card.innerHTML = `<div class="about"><!-- FNH PRODUCT ABOUT START --><div style="padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--line)"><img src="/product-icon.png" width="80" height="80" alt=""><h4>飞牛HDMI动态监控</h4><p>首个成品版 3.0.0 · 开发与集成：汪同学</p><p class="faint">HDMI 大屏 · 浏览器远控 · HALOFLUX 硬件联动</p><p class="about-credit">感谢以下内置飞牛监控的原作者与贡献者。HALOFLUX 动效修改自 <a href="https://github.com/Ryder191/haloflux" target="_blank" rel="noopener">Ryder191</a>，仅限非商业使用。</p></div><!-- FNH PRODUCT ABOUT END --><div class="brand-mark">${ic('logo')}</div><h4>飞牛监控 fnMonitor</h4><p>为飞牛 fnOS 打造的本地系统监控 · <span data-ref="v">v--</span></p>
+card.innerHTML = `<div class="about"><!-- FNH PRODUCT ABOUT START --><div style="padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--line)"><img src="/product-icon.png" width="80" height="80" alt=""><h4>飞牛HDMI动态监控</h4><p>HDMI 常亮修复测试版 3.0.9 · 开发与集成：汪同学</p><p class="faint">HDMI 大屏 · 浏览器远控 · HALOFLUX 硬件联动</p><p class="about-credit">感谢以下内置飞牛监控的原作者与贡献者。HALOFLUX 动效修改自 <a href="https://github.com/Ryder191/haloflux" target="_blank" rel="noopener">Ryder191</a>，仅限非商业使用。</p></div><!-- FNH PRODUCT ABOUT END --><div class="brand-mark">${ic('logo')}</div><h4>飞牛监控 fnMonitor</h4><p>为飞牛 fnOS 打造的本地系统监控 · <span data-ref="v">v--</span></p>
 <p class="faint" style="margin-top:2px">纯本地运行 · 历史记录、界面设置与配置都保存在 NAS 的程序数据目录中，与访问用的电脑无关</p>
 <p class="about-credit">作者 <a href="https://github.com/MisiteQ" target="_blank" rel="noopener noreferrer">Misite齊（@MisiteQ）</a> · 项目 <a href="https://github.com/MisiteQ/fnmonitor" target="_blank" rel="noopener noreferrer">github.com/MisiteQ/fnmonitor</a><br>界面与功能贡献 <a href="https://github.com/iqiuzixuan" target="_blank" rel="noopener noreferrer">iqiuzixuan</a>、<a href="https://github.com/ttkl9559-cell" target="_blank" rel="noopener noreferrer">ttkl9559-cell</a><br>通知推送架构参考 <a href="https://github.com/Sunanang/FNMessageBots" target="_blank" rel="noopener noreferrer">Sunanang/FNMessageBots</a>，致谢作者 Sunanang</p>
 <div style="display:flex;gap:8px;justify-content:center;margin-top:20px;flex-wrap:wrap"><a class="btn" href="https://github.com/MisiteQ/fnmonitor" target="_blank" rel="noopener noreferrer">${ic('ext')}项目主页</a><a class="btn" href="https://github.com/MisiteQ/fnmonitor/issues" target="_blank" rel="noopener noreferrer">${ic('help')}问题反馈</a><a class="btn" href="https://github.com/MisiteQ/fnmonitor/releases/latest" target="_blank" rel="noopener noreferrer">${ic('download')}版本发布</a><button class="btn" type="button" data-sheet="keys">${ic('key')}快捷键</button></div>
@@ -6519,14 +6519,14 @@ html.fnm-display{zoom:1!important}html.fnm-display body{overflow:hidden}
 <script>
 (()=>{'use strict';
 const root=document.documentElement,storeKey='fnmonitor-hdmi-display-view';let wanted=false,queued;
-try{wanted=localStorage.getItem(storeKey)==='1'}catch{}
+try{const saved=localStorage.getItem(storeKey);wanted=saved===null?['127.0.0.1','localhost','[::1]'].includes(location.hostname):saved==='1'}catch{}
 function fit(){
  const page=document.getElementById('page-overview'),metrics=document.querySelector('[data-mod="metrics"]');
  const active=wanted&&page&&!page.hidden;
  root.classList.toggle('fnm-display',!!active);
  if(!active||!metrics)return;
  // Measure actual cards, including their footer, rather than guessing a browser zoom level.
- let lo=.25,hi=2.0,best=.25;
+ let lo=.1,hi=3.0,best=.1;
  for(let i=0;i<12;i++){
   const scale=(lo+hi)/2;root.style.setProperty('--fnm-display-scale',scale);
   const rect=metrics.getBoundingClientRect(),box=page.getBoundingClientRect();
@@ -6543,7 +6543,7 @@ document.addEventListener('keydown',e=>{
  if(e.key!=='F8'&&e.key!=='F9')return;
  e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)set(e.key==='F8');
 },true);
-addEventListener('resize',schedule);addEventListener('hashchange',schedule);
+addEventListener('resize',schedule);window.visualViewport?.addEventListener('resize',schedule);addEventListener('hashchange',schedule);
 document.fonts?.ready.then(schedule);
 // Data and fonts arrive after page startup; remeasure without changing saved dashboard settings.
 const watch=new MutationObserver(schedule);watch.observe(document.getElementById('page-overview'),{childList:true,subtree:true,characterData:true});

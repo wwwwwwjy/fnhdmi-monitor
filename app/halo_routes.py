@@ -32,7 +32,7 @@ def serve(handler,app,data=None):
             if not ipaddress.ip_address(handler.client_address[0]).is_loopback:
                 handler._json({"error":"仅接受 NAS 本机显示页面确认"},status=403);return True
             app.scenes.seen((data or {}).get("mode"))
-            handler._json({"ok":True})
+            handler._json({"ok":True,"screen_fit":app.display_controller.auto_fit_window()})
         else:handler._json({"ok":True,"scene":app.scenes.update(data)})
     except (ValueError,TypeError):handler._json({"error":"显示设置无效，请检查模式、设备及联动范围。"},status=400)
     except OSError:handler._json({"error":"显示设置保存失败，未更改当前设置。"},status=500)

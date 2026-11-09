@@ -1,0 +1,28 @@
+#!/bin/bash
+# Run while the application and its cleanup code still exist. Never on upgrade.
+set -eu
+set -o pipefail
+umask 077
+: "${TRIM_APPDEST:?缺少应用目录}"
+: "${TRIM_PKGVAR:?缺少应用数据目录}"
+cleanup="${TRIM_APPDEST}/uninstall_display.py"
+if [ ! -f "$cleanup" ]; then
+    echo "缺少 HDMI / VNC 卸载清理程序，已停止卸载。" >&2
+    exit 1
+fi
+script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
+"${script_dir}/main" stop
+mkdir -p "${TRIM_PKGVAR}"
+logfile=$(mktemp "${TRIM_PKGVAR}/.display-uninstall.XXXXXX")
+if python3 -B -u "$cleanup" 2>&1 | tee "$logfile"; then
+    rm -f "$logfile"
+    find "${TRIM_PKGVAR}" -maxdepth 1 -type f -name '.display-uninstall.*' -delete
+    exit 0
+fi
+message="HDMI / VNC 清理未完成，已停止卸载。请查看 ${logfile}，修复后重试。"
+echo "$message" >&2
+if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+    printf '%s\n' "$message" > "${TRIM_TEMP_LOGFILE}"
+    tail -n 12 "$logfile" >> "${TRIM_TEMP_LOGFILE}"
+fi
+exit 1

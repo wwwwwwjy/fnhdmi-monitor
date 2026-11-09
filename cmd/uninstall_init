@@ -1,4 +1,40 @@
 #!/bin/bash
-# fnmonitor 卸载前处理
-# 应用若在运行，系统会先调用 main stop，此处无需额外操作
-exit 0
+# Run while the application and its cleanup code still exist. Never on upgrade.
+set -eu
+set -o pipefail
+umask 077
+# fnOS can invoke old uninstall hooks during replacement/upgrade. Only an
+# explicit UNINSTALL context may clean the display; unknown contexts preserve it.
+# Official variable contract: https://developer.fnnas.com/docs/core-concepts/environment-variables/
+case "${TRIM_APP_STATUS:-}" in
+    UNINSTALL)
+        if [ -n "${TRIM_OLD_APPVER:-}${TRIM_TEMP_UPGRADE_FOLDER:-}" ]; then
+            echo "检测到升级上下文，跳过 HDMI / VNC 卸载清理。"
+            exit 0
+        fi
+        ;;
+    *) echo "非明确卸载操作，保留 HDMI / VNC 环境；如需卸载，请先在控制面板清理。"; exit 0 ;;
+esac
+: "${TRIM_APPDEST:?缺少应用目录}"
+: "${TRIM_PKGVAR:?缺少应用数据目录}"
+cleanup="${TRIM_APPDEST}/uninstall_display.py"
+if [ ! -f "$cleanup" ]; then
+    echo "缺少 HDMI / VNC 卸载清理程序，已停止卸载。" >&2
+    exit 1
+fi
+script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
+"${script_dir}/main" stop
+mkdir -p "${TRIM_PKGVAR}"
+logfile=$(mktemp "${TRIM_PKGVAR}/.display-uninstall.XXXXXX")
+if python3 -B -u "$cleanup" 2>&1 | tee "$logfile"; then
+    rm -f "$logfile"
+    find "${TRIM_PKGVAR}" -maxdepth 1 -type f -name '.display-uninstall.*' -delete
+    exit 0
+fi
+message="HDMI / VNC 清理未完成，已停止卸载。请查看 ${logfile}，修复后重试。"
+echo "$message" >&2
+if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+    printf '%s\n' "$message" > "${TRIM_TEMP_LOGFILE}"
+    tail -n 12 "$logfile" >> "${TRIM_TEMP_LOGFILE}"
+fi
+exit 1

@@ -23,7 +23,7 @@
   const j=await r.json();if(!r.ok)throw Error(j.error||j.message||'连接失败');return j;
  }
  function render(data){
-  const m=data.metrics||{},s=data.settings||{};document.body.classList.toggle('offline',!!data.stale);
+  const m=data.metrics||{},s=data.settings||{};$('brandTitle').textContent=s.title||'HALOFLUX';document.body.classList.toggle('offline',!!data.stale);
   for(const [key,label,unit] of fields){
    const item=m[key]||{},v=data.stale?null:item.value,ok=valid(v),card=cards[key];
    const max=key==='cpu_temp'?s.cpu_hot:key==='gpu_temp'?s.gpu_hot:key==='power'?s.power_w:key==='disk_read'?s.read_mib*MiB:key==='disk_write'?s.write_mib*MiB:key.startsWith('net_')?s.net_mib*MiB:100;
@@ -58,8 +58,14 @@
   for(const [key,v] of Object.entries(latest.settings)){const el=$('form').elements[key];if(el)el.value=v}
   $('formMsg').textContent='';$('dialog').showModal();
  };
+ for(const button of document.querySelectorAll('[data-reset]'))button.onclick=()=>{
+  const name=button.dataset.reset,defaults=latest?.defaults;
+  if(!defaults||!Object.hasOwn(defaults,name)){ $('formMsg').textContent='无法读取默认值，请刷新页面后重试';return }
+  const control=$('form').elements.namedItem(name);control.value=defaults[name];control.dispatchEvent(new Event('input',{bubbles:true}));
+  $('formMsg').textContent='此项已恢复默认值，点击“保存设置”后生效。';control.focus();
+ };
  $('close').onclick=()=>$('dialog').close();
- $('form').onsubmit=async e=>{e.preventDefault();const settings={};for(const [k,v] of new FormData(e.target))settings[k]=['disk','net','gpu','quality'].includes(k)?v:Number(v);
+ $('form').onsubmit=async e=>{e.preventDefault();const settings={};for(const [k,v] of new FormData(e.target))settings[k]=['title','disk','net','gpu','quality'].includes(k)?v:Number(v);
   const save=e.submitter;save.disabled=true;try{await api('/api/display/scene',{settings});$('dialog').close();latest=await api('/api/display/telemetry');render(latest);showTip('联动设置已保存')}catch(e){$('formMsg').textContent=e.message}finally{save.disabled=false}
  };
  $('monitor').onclick=async()=>{try{await api('/api/display/scene',{mode:'monitor'});location.href='/#/overview'}catch(e){showTip(e.message)}};

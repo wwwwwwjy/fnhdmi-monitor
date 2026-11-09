@@ -11228,6 +11228,9 @@ class DisplayController:
         self._action_lock = _DISPLAY_MUTATION
         self._job_lock = threading.Lock()
         self._job = None
+        self._fit_at = 0
+        self._fit_result = None
+        self._fit_start_thread = None
 
     def _path(self, path):
         return os.path.join(self.system_root, path.lstrip("/"))
@@ -11563,7 +11566,8 @@ class DisplayController:
                 "vnc_unit_installed": unit_installed,
                 "browser_installed": bool(self._resources().read("vnc")) and os.path.isfile(os.path.join(self.unit_dir,"fnmonitor-browser-vnc@.service")),
                 "browser_running": self.browser_ready(),
-                "hdmi_managed": bool(self._resources().read("hdmi"))}
+                "hdmi_managed": bool(self._resources().read("hdmi")),
+                "display_mode": self._read_display_mode(), "screen_fit": self._fit_result}
 
     def job(self):
         with self._job_lock:
@@ -11597,9 +11601,99 @@ class DisplayController:
 
     def _env_install(self, feature="hdmi", operation="install"):
         argv = [sys.executable, "-u", os.path.join(os.path.dirname(__file__), "display_resources.py"), feature, operation, str(self.port)]
+        return self._stream_display_task(argv, "环境操作失败")
+
+    def _prepare_uninstall(self):
+        # Run directly while this HTTP service is alive; do not invoke cmd/main stop
+        # or depend on the app store calling uninstall_init. The client can keep
+        # polling progress after the HDMI browser and VNC have been stopped.
+        argv = [sys.executable, "-B", "-u", os.path.join(os.path.dirname(__file__), "uninstall_display.py"),
+                "--port", str(self.port)]
+        env = dict(os.environ, TRIM_PKGVAR=self.cleanup_data_dir,
+                   TRIM_SERVICE_PORT=str(self.port), DEBIAN_FRONTEND="noninteractive")
+        ok, message, status = self._stream_display_task(argv, "清理未完成，请勿继续在应用商店卸载", env)
+        if ok:
+            message = "清理完成，已返回飞牛命令行界面。现在请到飞牛应用商店卸载本软件。监控历史仍保留，由应用商店卸载向导决定是否删除。"
+        return ok, message, status
+
+    def _read_display_mode(self):
+        directory = getattr(self, "cleanup_data_dir", "")
+        if not directory:return "auto"
+        try:
+            path = Path(directory) / "display-output.json"
+            if path.is_symlink():return "auto"
+            value = json.loads(path.read_text()).get("mode")
+            return value if value in ("auto", "1920x1080", "1280x720") else "auto"
+        except (OSError, ValueError, AttributeError):return "auto"
+
+    def _save_display_mode(self, mode):
+        directory = self.cleanup_data_dir
+        path = Path(directory) / "display-output.json"
+        if path.is_symlink():raise OSError("分辨率配置是链接，未覆盖")
+        fd, name = tempfile.mkstemp(prefix=".display-output-", dir=directory)
+        try:
+            with os.fdopen(fd,"w") as f:
+                json.dump({"mode":mode},f);f.flush();os.fsync(f.fileno());os.fchmod(f.fileno(),0o600)
+            os.replace(name,path)
+        finally:
+            if os.path.exists(name):os.unlink(name)
+
+    def _fit_window(self, requested=None):
+        mode = requested or self._read_display_mode()
+        result = self._run_command([sys.executable, "-B", os.path.join(os.path.dirname(__file__), "display_fit.py"),
+                                    "--port", str(self.port), "--mode", mode], timeout=75)
+        try:
+            data = json.loads(result.stdout)
+        except (ValueError, TypeError):
+            data = {"ok": False, "message": (result.stderr or "窗口适配没有返回结果")[-600:]}
+        ok = result.returncode == 0 and data.get("ok") is True
+        message = ("已适配 %s：%s × %s，输出、桌面与浏览器窗口尺寸一致。" % (data.get("output", "HDMI"), data.get("width"), data.get("height"))) if ok else data.get("message", "窗口适配失败")
+        if ok and data.get("keep_awake"):message += " HDMI 已设为常亮。"
+        if ok and requested is not None:
+            try:self._save_display_mode(mode)
+            except OSError as e:
+                ok=False;message="画面已适配，但开机分辨率选择保存失败："+str(e)
+        self._fit_result = dict(ok=ok, message=message)
+        self._fit_at = time.monotonic()
+        return ok, message
+
+    def schedule_startup_fit(self):
+        # A finite startup retry also works before the kiosk page has logged in.
+        # Subsequent resolution checks reuse the existing local scene heartbeat.
+        if sys.platform != "linux" or self.system_root != "/" or os.environ.get("TRIM_APPNAME") != "fnmonitor":
+            return
+        with self._job_lock:
+            if self._fit_start_thread and self._fit_start_thread.is_alive():return
+            self._fit_start_thread = threading.Thread(target=self._startup_fit, name="display-startup-fit", daemon=True)
+            self._fit_start_thread.start()
+
+    def _startup_fit(self):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if self._action_lock.acquire(False):
+                try:
+                    with self._job_lock:
+                        if self._job and self._job.get("action") == "prepare_uninstall":return
+                    if self._fit_window()[0]:return
+                finally:self._action_lock.release()
+            time.sleep(2)
+
+    def auto_fit_window(self):
+        # Triggered by the existing NAS-local scene heartbeat: no new daemon.
+        # Share the mutation lock so cleanup/install cannot race with X11 access.
+        if time.monotonic() - self._fit_at < 15 or not self._action_lock.acquire(False):
+            return self._fit_result
+        try:
+            self._fit_window()
+            return self._fit_result
+        finally:
+            self._action_lock.release()
+
+    def _stream_display_task(self, argv, failure_label, env=None):
         last = ""
         with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              stdin=subprocess.DEVNULL, text=True, errors="replace") as proc:
+                              stdin=subprocess.DEVNULL, text=True, errors="replace", env=env,
+                              start_new_session=True) as proc:
             for line in proc.stdout:
                 line = re.sub(r"(https?://)[^/\s@]+@", r"\1***@", line.strip())[:600]
                 if not line:
@@ -11610,9 +11704,9 @@ class DisplayController:
                         if line.startswith("[阶段]"):
                             self._job["stage"] = line[4:].strip()
                         self._job["lines"].append(line)
-                        del self._job["lines"][:-80]
+                        del self._job["lines"][:-200]
             code = proc.wait()
-        return code == 0, last if code == 0 else "安装失败（退出码 %d）：%s" % (code, last), self._describe()
+        return code == 0, last if code == 0 else "%s（退出码 %d）：%s" % (failure_label, code, last), self._describe()
 
     def setup_hdmi(self):
         st = self._describe()
@@ -12024,6 +12118,11 @@ class DisplayController:
         return False,"远控启动失败："+("\n".join(important[:12]) or error or "\n".join(lines[:15]))[:2000],self._describe()
 
     def _action(self, action):
+        if action in ("fit_display", "fit_display_auto", "fit_display_1080", "fit_display_720"):
+            mode = {"fit_display_auto":"auto", "fit_display_1080":"1920x1080", "fit_display_720":"1280x720"}.get(action)
+            ok, message = self._fit_window(mode)
+            return ok, message, self._describe()
+        if action == "prepare_uninstall":return self._prepare_uninstall()
         if action in ("install_env","install_hdmi"):
             ok,msg,st=self._env_install("hdmi")
             if ok and st["compatible"] and not st["integrated"]:
@@ -12069,7 +12168,9 @@ class DisplayController:
         if action in ("show_console", "show_desktop"):
             if not st["hdmi_running"] or st["display_vt"] in ("", "tty1"):
                 return False, "图形终端已变化，请刷新状态。", st
-            return self._select_vt("tty1" if action == "show_console" else st["display_vt"])
+            result = self._select_vt("tty1" if action == "show_console" else st["display_vt"])
+            if result[0] and action == "show_desktop":self.schedule_startup_fit()
+            return result
         if st["display_vt"] not in ("", "tty1") and action in ("hdmi_on", "hdmi_off"):
             return False, "已有独立图形会话，请使用切换显示器按钮。", st
         # An earlier version could remove the startup files but leave its X session
@@ -12105,6 +12206,7 @@ class DisplayController:
             self._flag("/run/fnmonitor-hdmi.on", on)
             self._flag("/run/fnmonitor-hdmi.off", not on)
             ok, msg = self._finish_switch(on)
+            if ok and on:self.schedule_startup_fit()
             return ok, msg or ("图形服务已启动。" if on else "已切回 tty1 命令行。"), self._describe()
         user = st["vnc_user"]
         if action == "legacy_vnc_off":
@@ -12145,6 +12247,7 @@ class MonitorApp:
         self.port = port
         self.display_controller = DisplayController()
         self.display_controller.port = int(port)
+        self.display_controller.cleanup_data_dir = str(self._cfg_dir)
         import importlib.util
         spec = importlib.util.spec_from_file_location("halo_state", os.path.join(os.path.dirname(__file__), "halo_state.py"))
         scene_module = importlib.util.module_from_spec(spec); spec.loader.exec_module(scene_module)
@@ -13542,9 +13645,11 @@ class MonitorApp:
         return status
 
     def api_display_action(self, action, background=False):
-        allowed = {"install_hdmi", "install_vnc", "uninstall_vnc", "clean_vnc", "show_console", "show_desktop", "boot_on", "boot_off", "install_env", "setup_hdmi", "uninstall_hdmi", "hdmi_on", "hdmi_off", "vnc_on", "vnc_off"}
+        allowed = {"fit_display_auto", "fit_display_1080", "fit_display_720", "fit_display", "prepare_uninstall", "install_hdmi", "install_vnc", "uninstall_vnc", "clean_vnc", "show_console", "show_desktop", "boot_on", "boot_off", "install_env", "setup_hdmi", "uninstall_hdmi", "hdmi_on", "hdmi_off", "vnc_on", "vnc_off"}
         if action not in allowed:
             return False, "不支持的操作。", self.display_controller.status()
+        if action == "prepare_uninstall" and not background:
+            return False, "请通过后台任务执行清理，以便持续查看进度。", self.display_controller.status()
         ok, message, status = (self.display_controller.start_job(action) if background else self.display_controller.action(action))
         return bool(ok), str(message), status
 
@@ -15589,6 +15694,7 @@ def main():
         print("[fnmonitor] 已回退到端口 %d（配置端口 %s 不可用）" % (port, want))
     app.port = port
     app.display_controller.port = port
+    app.display_controller.schedule_startup_fit()
     # 按用户配置同步桌面入口（升级包会覆盖 ui/config 并把应用中心数据库重置为
     # 包默认 iframe，type 与端口一并恢复；apply_launcher_entry 内部会同步 fnOS
     # 应用中心数据库——桌面点击行为由数据库决定）。使用实际监听端口。

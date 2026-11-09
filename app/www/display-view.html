@@ -16,14 +16,14 @@ html.fnm-display{zoom:1!important}html.fnm-display body{overflow:hidden}
 <script>
 (()=>{'use strict';
 const root=document.documentElement,storeKey='fnmonitor-hdmi-display-view';let wanted=false,queued;
-try{wanted=localStorage.getItem(storeKey)==='1'}catch{}
+try{const saved=localStorage.getItem(storeKey);wanted=saved===null?['127.0.0.1','localhost','[::1]'].includes(location.hostname):saved==='1'}catch{}
 function fit(){
  const page=document.getElementById('page-overview'),metrics=document.querySelector('[data-mod="metrics"]');
  const active=wanted&&page&&!page.hidden;
  root.classList.toggle('fnm-display',!!active);
  if(!active||!metrics)return;
  // Measure actual cards, including their footer, rather than guessing a browser zoom level.
- let lo=.25,hi=2.0,best=.25;
+ let lo=.1,hi=3.0,best=.1;
  for(let i=0;i<12;i++){
   const scale=(lo+hi)/2;root.style.setProperty('--fnm-display-scale',scale);
   const rect=metrics.getBoundingClientRect(),box=page.getBoundingClientRect();
@@ -40,7 +40,7 @@ document.addEventListener('keydown',e=>{
  if(e.key!=='F8'&&e.key!=='F9')return;
  e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)set(e.key==='F8');
 },true);
-addEventListener('resize',schedule);addEventListener('hashchange',schedule);
+addEventListener('resize',schedule);window.visualViewport?.addEventListener('resize',schedule);addEventListener('hashchange',schedule);
 document.fonts?.ready.then(schedule);
 // Data and fonts arrive after page startup; remeasure without changing saved dashboard settings.
 const watch=new MutationObserver(schedule);watch.observe(document.getElementById('page-overview'),{childList:true,subtree:true,characterData:true});

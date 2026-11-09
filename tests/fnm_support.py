@@ -85,9 +85,10 @@ class ServerProcess:
         app = os.path.join(self.pkg, "app")
         os.makedirs(app)
         shutil.copy2(self.server_py, os.path.join(app, "server.py"))
-        for extra in ("display_resources.py","browser_vnc.py","display_compat.py","halo_state.py","halo_routes.py"):
+        for extra in ("display_fit.py","uninstall_display.py","display_resources.py","browser_vnc.py","display_compat.py","halo_state.py","halo_routes.py"):
             shutil.copy2(os.path.join(REPO,"app",extra),os.path.join(app,extra))
         shutil.copytree(os.path.join(REPO, "app", "www"), os.path.join(app, "www"))
+        shutil.copytree(os.path.join(REPO, "app", "utils"), os.path.join(app, "utils"))
         cities = os.path.join(REPO, "app", "cities_cn.json")
         if os.path.exists(cities):
             shutil.copy2(cities, os.path.join(app, "cities_cn.json"))

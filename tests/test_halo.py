@@ -56,3 +56,16 @@ class HaloStateTest(unittest.TestCase):
  def test_corrupt_file_preserved_and_observation_not_persisted(self):
   self.state.path.write_text('broken');s=m.SceneState(self.root);self.assertTrue(s.status()['warning']);self.assertEqual(s.path.read_text(),'broken')
   s.seen('monitor');self.assertTrue(s.status()['connected']);self.assertEqual(s.status()['observed'],'monitor')
+
+ def test_title_defaults_legacy_preferences_persistence_and_validation(self):
+  self.state.path.write_text(json.dumps({'mode':'haloflux','settings':{'read_mib':700}}))
+  legacy=m.SceneState(self.root);self.assertEqual(legacy.status()['settings']['title'],'HALOFLUX')
+  self.assertEqual(legacy.status()['settings']['read_mib'],700)
+  legacy.update({'settings':{'title':'  汪同学的 NAS  '}})
+  self.assertEqual(m.SceneState(self.root).status()['settings']['title'],'汪同学的 NAS')
+  for invalid in ('a'*33,'bad\nline','bad\x00',None,12):
+   with self.assertRaises(ValueError):legacy.update({'settings':{'title':invalid}})
+  self.assertEqual(legacy.status()['settings']['title'],'汪同学的 NAS')
+  legacy.update({'settings':{'title':'   '}});self.assertEqual(legacy.status()['settings']['title'],'HALOFLUX')
+  values=legacy.telemetry(self.sample(),now=1001)['defaults'];self.assertEqual(values,m.DEFAULTS)
+  values['title']='changed';self.assertEqual(m.DEFAULTS['title'],'HALOFLUX')

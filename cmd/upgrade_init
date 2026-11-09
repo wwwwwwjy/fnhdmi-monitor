@@ -11,7 +11,7 @@ config=json.loads(cfg.read_text()) if cfg.exists() else {}
 custom=str(config.get("data_dir") or "").strip()
 locations=[base,base/"localdata"]
 if custom and os.path.isabs(custom):locations.append(Path(custom).resolve())
-backup=base/".display-upgrade-backups"/("3.0.0-"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
+backup=base/".display-upgrade-backups"/("3.0.9-"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
 backup.mkdir(parents=True,mode=0o700)
 os.chmod(backup.parent,0o700)
 mapping=[]

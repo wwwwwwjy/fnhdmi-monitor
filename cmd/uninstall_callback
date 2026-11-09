@@ -3,18 +3,13 @@
 # fnmonitor 卸载后处理
 # 根据用户选择决定是否删除监控历史数据（var 目录由系统保留）
 # ============================================================
-# 只停止并移除本应用安装的 VNC 模板服务；用户原有的 bash 登录脚本和备份保留。
-if command -v systemctl >/dev/null 2>&1; then
-    while read -r unit _rest; do
-        case "$unit" in
-            fnmonitor-x11vnc@*.service|fnmonitor-browser-vnc@*.service) systemctl disable --now "$unit" 2>/dev/null || true ;;
-        esac
-    done < <(systemctl list-units --all --type=service --no-legend 2>/dev/null)
+# Replacement/upgrade may invoke this hook too. Never remove retained data in
+# an upgrade/unknown context even if stale wizard_delete_data=true is supplied.
+if [ "${TRIM_APP_STATUS:-}" != "UNINSTALL" ] || [ -n "${TRIM_OLD_APPVER:-}${TRIM_TEMP_UPGRADE_FOLDER:-}" ]; then
+    echo "非明确卸载操作，保留全部监控数据。"
+    exit 0
 fi
-rm -f /etc/systemd/system/fnmonitor-browser-vnc@.service /etc/systemd/system/fnmonitor-x11vnc@.service 2>/dev/null || true
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl daemon-reload 2>/dev/null || true
-fi
+# Actual uninstall: display cleanup has run before the app files were removed.
 
 if [ "${wizard_delete_data}" = "true" ]; then
     if [ -d "${TRIM_PKGVAR}" ]; then

@@ -20,7 +20,7 @@ if ((new)); then
 fi
 echo "[阶段] 检查本机已经安装的软件"
 packages=()
-for pair in startx:xinit Xorg:xserver-xorg xauth:xauth chromium:chromium chvt:kbd; do
+for pair in startx:xinit Xorg:xserver-xorg xauth:xauth chromium:chromium chvt:kbd xrandr:x11-xserver-utils; do
     command -v "${pair%%:*}" >/dev/null || packages+=("${pair#*:}")
 done
 if (("${#packages[@]}")); then
@@ -48,7 +48,7 @@ runuser -u "$user" -- tee "$home/.bash_profile" >/dev/null <<'PROFILE'
 # >>> FNMONITOR KIOSK AUTOSTART >>>
 if [ "$(tty 2>/dev/null)" = "/dev/tty1" ] && [ -z "${FNMONITOR_KIOSK_AUTO:-}" ] && { [ -f "/run/fnmonitor-hdmi.on" ] || { [ ! -f "/run/fnmonitor-hdmi.off" ] && [ -f "/etc/fnmonitor-hdmi.enabled" ]; }; }; then
     export FNMONITOR_KIOSK_AUTO=1
-    startx -- :0 vt1 -keeptty
+    startx -- :0 vt1 -keeptty -s 0 -dpms
 fi
 # <<< FNMONITOR KIOSK AUTOSTART <<<
 PROFILE

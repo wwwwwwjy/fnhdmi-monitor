@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-DEFAULTS = dict(disk="auto", net="auto", gpu="auto", read_mib=200, write_mib=200,
+DEFAULTS = dict(title="HALOFLUX", disk="auto", net="auto", gpu="auto", read_mib=200, write_mib=200,
                 net_mib=125, power_w=300, cpu_hot=90, gpu_hot=85, intensity=1,
                 fps=24, quality="economy")
 RANGES = dict(read_mib=(1,100000), write_mib=(1,100000), net_mib=(1,100000),
@@ -25,7 +25,11 @@ def valid_settings(value):
         raise ValueError("包含不支持的联动设置")
     out = {}
     for key,v in value.items():
-        if key in ("disk","net","gpu"):
+        if key == "title":
+            if not isinstance(v,str) or len(v)>32 or any(ord(c)<32 or ord(c)==127 for c in v):
+                raise ValueError("标题应为不超过 32 个字符的单行文字")
+            v=v.strip() or DEFAULTS["title"]
+        elif key in ("disk","net","gpu"):
             if not isinstance(v,str) or len(v)>180 or not v or any(ord(c)<32 for c in v):
                 raise ValueError("设备选择无效")
         elif key in RANGES:
@@ -139,6 +143,6 @@ class SceneState:
         power=snap.get("power") or {};source=power.get("source")
         ps={"idrac":"iDRAC 整机实测","rapl":"CPU 实测 + 整机估算","estimate":"整机估算","estimated":"整机估算"}.get(source,"整机估算 / "+str(source or "未知"))
         add("power",power.get("total") if power.get("ok") else None,"W",ps)
-        return dict(ts=ts,age=age,stale=stale,interval=interval,metrics=metrics,settings=cfg,
+        return dict(ts=ts,age=age,stale=stale,interval=interval,metrics=metrics,settings=cfg,defaults=dict(DEFAULTS),
                     devices=dict(disks=[d["name"] for d in disks],nets=[n["iface"] for n in nets],
                                  gpus=[dict(id=gid(g,i),name=str(g.get("name") or gid(g,i))) for i,g in enumerate(gpus)]))

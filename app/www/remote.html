@@ -1,10 +1,12 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>飞牛HDMI动态监控 · 远程控制</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#141820;color:#fff;font:14px system-ui;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
-header{display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap;flex:none}button,a{font:inherit;color:inherit;background:#263243;border:1px solid #566078;border-radius:8px;padding:8px 12px;text-decoration:none;cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #8cc4ff}#screen{flex:1;min-height:0;overflow:hidden}#msg{flex:1;min-width:180px}button:disabled{opacity:.4}.primary{background:#2462db}#reveal{display:none;position:fixed;top:8px;right:10px;z-index:20;opacity:.3}#reveal:hover,#reveal:focus{opacity:1}body.clean header{display:none}body.clean #reveal{display:block}#notice{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:30;background:#202b3aee;border-radius:8px;padding:10px 16px;max-width:90vw;pointer-events:none}#notice[hidden]{display:none}
+header{display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap;flex:none}button,a,select{font:inherit;color:inherit;background:#263243;border:1px solid #566078;border-radius:8px;padding:8px 12px;text-decoration:none;cursor:pointer}button:focus-visible,a:focus-visible{outline:2px solid #8cc4ff}#screen{flex:1;min-width:0;min-height:0;width:100%;overflow:hidden;background:#0b0e13}#msg{flex:1;min-width:180px}button:disabled{opacity:.4}.primary{background:#2462db}#reveal{display:none;position:fixed;top:8px;right:10px;z-index:20;opacity:.3}#reveal:hover,#reveal:focus{opacity:1}body.clean header{display:none}body.clean #reveal{display:block}#notice{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:30;background:#202b3aee;border-radius:8px;padding:10px 16px;max-width:90vw;pointer-events:none}#notice[hidden]{display:none}
 </style>
 <header><a href="/launcher.html">返回控制面板</a><span id="msg" role="status">连接中…</span>
 <button id="sceneMonitor">显示飞牛监控</button><button id="sceneHalo">显示 HALOFLUX</button>
+<select id="resolution" aria-label="HDMI 分辨率"><option value="auto">自动分辨率</option><option value="1080">1920 × 1080</option><option value="720">1280 × 720</option></select>
+<button id="fitHdmi" data-remote disabled title="调整 HDMI 输出、桌面和浏览器尺寸，并保存下次开机的分辨率">适配 HDMI 屏幕</button>
 <button id="overview" data-remote disabled title="隐藏监控导航，完整显示六张指标卡；NAS 浏览器会记住此选择">一屏总览</button><button id="normal" data-remote disabled>普通页面</button>
 <button id="smaller" data-remote disabled title="缩小 NAS 上的网页内容">页面 −</button><button id="larger" data-remote disabled title="放大 NAS 上的网页内容">页面 ＋</button><button id="reset" data-remote disabled>重置缩放</button>
 <button id="refresh" data-remote disabled title="升级后先刷新远端网页，让新的显示功能生效">刷新远端</button><button id="cad" data-remote disabled>Ctrl + Alt + Del</button><button id="retry">重新连接</button><button id="full" class="primary">纯画面全屏</button></header>
@@ -15,13 +17,18 @@ const $=id=>document.getElementById(id);let rfb,connected=false,timer;
 function tell(text){$('notice').textContent=text;$('notice').hidden=false;clearTimeout(timer);timer=setTimeout(()=>$('notice').hidden=true,4500)}
 function enabled(on){connected=on;document.querySelectorAll('[data-remote]').forEach(b=>b.disabled=!on)}
 function key(sym,code,ctrl=false){if(!connected)return;rfb.focus();if(ctrl)rfb.sendKey(0xffe3,'ControlLeft',true);try{rfb.sendKey(sym,code)}finally{if(ctrl)rfb.sendKey(0xffe3,'ControlLeft',false)}}
+function fitViewport(){if(rfb){rfb.scaleViewport=true;rfb.clipViewport=false}}
+const viewportObserver=new ResizeObserver(()=>requestAnimationFrame(fitViewport));viewportObserver.observe($('screen'));
+addEventListener('pagehide',()=>{viewportObserver.disconnect();rfb?.disconnect()});
+addEventListener('pageshow',e=>{if(e.persisted){viewportObserver.observe($('screen'));connect()}});
 function connect(){rfb?.disconnect();$('screen').replaceChildren();$('msg').textContent='正在连接飞牛显示器…';enabled(false);
 const current=rfb=new RFB($('screen'),(location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/display/socket');rfb.scaleViewport=true;rfb.resizeSession=false;rfb.viewOnly=false;
-current.addEventListener('connect',()=>{if(rfb!==current)return;$('msg').textContent='已连接 · 可以用鼠标和键盘操作';enabled(true);rfb.focus()});
-current.addEventListener('disconnect',()=>{if(rfb!==current)return;$('msg').textContent='连接已断开，请确认已登录且远程控制已启动，再重新连接。';enabled(false);document.body.classList.remove('clean')});
+current.addEventListener('connect',()=>{if(rfb!==current)return;$('msg').textContent='已连接 · 可以用鼠标和键盘操作';enabled(true);fitViewport();rfb.focus()});
+current.addEventListener('disconnect',()=>{if(rfb!==current)return;$('msg').textContent='连接已断开。若连续 30 分钟无人连接，VNC 会自动停用；请返回控制面板开启后再连接。';enabled(false);document.body.classList.remove('clean')});
 current.addEventListener('securityfailure',e=>{if(rfb===current)$('msg').textContent='连接失败：'+(e.detail.reason||'认证未通过')})}
 async function scene(mode){try{const r=await fetch('/api/display/scene',{method:'POST',headers:{'Content-Type':'application/json','X-FNM-Request':'1'},body:JSON.stringify({mode})});const j=await r.json();if(!r.ok)throw Error(j.error||'切换失败');tell('已选择'+(mode==='haloflux'?' HALOFLUX':'飞牛监控')+'，等待 NAS 页面切换；首次升级请先点“刷新远端”。')}catch(e){tell(e.message)}}
 $('sceneMonitor').onclick=()=>scene('monitor');$('sceneHalo').onclick=()=>scene('haloflux');
+$('fitHdmi').onclick=async()=>{if(!connected)return;$('fitHdmi').disabled=true;try{const r=await fetch('/api/display/action',{method:'POST',headers:{'Content-Type':'application/json','X-FNM-Request':'1'},body:JSON.stringify({action:'fit_display_'+$('resolution').value})});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.message||'适配失败');key(0xffc5,'F8');fitViewport();tell(j.message+'监控页面已切换一屏总览。')}catch(e){tell(e.message)}finally{$('fitHdmi').disabled=!connected}};
 $('overview').onclick=()=>{key(0xffc5,'F8');tell('已发送一屏总览指令；升级后首次使用请先点“刷新远端”。')};
 $('normal').onclick=()=>key(0xffc6,'F9');
 function zoom(sym,code){key(0xffc6,'F9');key(sym,code,true);tell('已切换普通页面并调整远端缩放；“一屏总览”会自动适配屏幕。')}
@@ -31,5 +38,6 @@ $('full').onclick=async()=>{document.body.classList.add('clean');try{if(!documen
 $('reveal').onclick=()=>document.body.classList.remove('clean');
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('clean')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('clean')){e.preventDefault();e.stopImmediatePropagation();document.body.classList.remove('clean')}},true);
+fetch('/api/display/status').then(r=>r.json()).then(s=>{$('resolution').value=({'1920x1080':'1080','1280x720':'720'})[s.display_mode]||'auto'}).catch(()=>{});
 connect();
 </script></html>

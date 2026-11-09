@@ -1,4 +1,4 @@
-"""Exercise the actual FPK's upgrade hooks and restart against retained 2.41.4 data."""
+"""Exercise FPK upgrade hooks; --rescue includes the old-hook recovery path."""
 import ast,hashlib,http.client,json,os,secrets,shutil,socket,sqlite3,subprocess,sys,tarfile,tempfile,time
 from pathlib import Path
 official=Path(sys.argv[1]);custom=Path(sys.argv[2])
@@ -68,8 +68,21 @@ with tempfile.TemporaryDirectory(prefix="fnm-2415-") as td:
   assert json.loads(req("/api/config",cookie=cookie)[1])["config"]["version"]==old_version
  finally:stop(p,log)
  (data/"display-scene.json").write_text(json.dumps({"mode":"haloflux","settings":{"read_mib":600,"fps":15}}))
+ (data/"display-output.json").write_text('{"mode":"1280x720"}')
+ saved_output=(data/"display-output.json").read_bytes()
  saved_scene=(data/"display-scene.json").read_bytes()
  saved=(data/"config.json").read_bytes();saved_ui=(customdata/"ui.json").read_bytes()
+ if '--rescue' in sys.argv[3:]:
+  import importlib.util
+  spec=importlib.util.spec_from_file_location('rescue',Path(__file__).parent/'unblock_upgrade.py')
+  rescue=importlib.util.module_from_spec(spec);spec.loader.exec_module(rescue)
+  (old/'var').symlink_to(data,target_is_directory=True)
+  rescue.repair(old)
+  # fnOS replacement can invoke old uninstall hooks before new code is installed.
+  context=dict(env,TRIM_APP_STATUS='UPGRADE',TRIM_OLD_APPVER=old_version,wizard_delete_data='true')
+  for hook in ('uninstall_init','uninstall_callback'):
+   subprocess.run(['bash',str(old/'cmd'/hook)],env=context,check=True)
+  assert (data/'config.json').read_bytes()==saved
  # Execute the exact pre-upgrade hook that is shipped in the new package.
  subprocess.run(["bash",str(new/"cmd/upgrade_init")],env=env,check=True)
  assert (data/"config.json").read_bytes()==saved
@@ -80,11 +93,18 @@ with tempfile.TemporaryDirectory(prefix="fnm-2415-") as td:
   assert db.execute("SELECT value FROM metrics WHERE ts=? AND metric='cpu'",(stamp,)).fetchone()==(12.345,)
  shutil.rmtree(live);shutil.copytree(new/"app",live);shutil.copy2(new/"manifest",live/"manifest")
  subprocess.run(["bash",str(new/"cmd/upgrade_callback")],env=env,check=True)
+ if '--rescue' in sys.argv[3:]:
+  for hook in ('uninstall_init','uninstall_callback'):
+   subprocess.run(['bash',str(new/'cmd'/hook)],env=context,check=True)
+  assert (data/'config.json').read_bytes()==saved
+  print('PASS: old-hook rescue and new uninstall hooks preserve data in UPGRADE context')
  assert (data/"config.json").read_bytes()==saved
  p,log=start()
  try:
   for url in ("/","/launcher.html","/remote.html","/novnc/core/rfb.js","/api/display/status","/api/config","/api/overview","/haloflux.html","/haloflux/engine.js","/haloflux/telemetry.js","/display-scene.js","/haloflux/LICENSE.txt","/api/display/telemetry","/api/display/scene"):
    r=req(url,cookie=cookie);assert r[0]==200,(url,r[0],r[1][:200])
+  assert (data/"display-output.json").read_bytes()==saved_output
+  assert json.loads(req("/api/display/status",cookie=cookie)[1])["display_mode"]=="1280x720"
   assert (data/"display-scene.json").read_bytes()==saved_scene
   scene=json.loads(req("/api/display/scene",cookie=cookie)[1]);assert scene["mode"]=="haloflux" and scene["settings"]["read_mib"]==600
   assert req("/api/display/telemetry")[0]==401

@@ -1,9 +1,9 @@
 {
   "baseline": "MisiteQ/fnmonitor official 2.41.4 x86 FPK",
   "source_sha256": "1065c4d6f47862d8e01210c1f1e5cbc83896cd208ab799f881d4f77be12c26d9",
-  "custom_version": "3.0.0",
+  "custom_version": "3.0.9",
   "monitoring_data_schema": "unchanged from official 2.41.4",
-  "fix": "First branded release; shared HDMI/VNC/HALOFLUX features; manual product upgrades prevent upstream replacement",
+  "fix": "Disable and read back kiosk X11 screen-saver and DPMS settings; wake blanked display, reapply with existing startup/scene checks; new kiosk starts with -s 0 -dpms. VNC idle timeout remains separate.",
   "haloflux": {
     "repository": "https://github.com/Ryder191/haloflux",
     "commit": "016bef651c4f911f08039ba159d36a6f246ff5d2",
