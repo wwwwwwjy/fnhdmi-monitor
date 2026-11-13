@@ -1,0 +1,16 @@
+#fn-coffee{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:80;border:1px solid #cfb79a;background:#fff8ef;color:#634326;border-radius:28px;padding:12px 18px;font:600 14px/1.4 system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 20px #0002}
+#fn-coffee:focus-visible,#fn-coffee-dialog button:focus-visible{outline:3px solid #3275df;outline-offset:3px}
+#fn-coffee-dialog{box-sizing:border-box;width:min(720px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;padding:24px;border:1px solid #ddd;border-radius:20px;background:#fff;color:#20242b;overflow:auto;font:15px/1.6 system-ui,sans-serif;box-shadow:0 20px 80px #0004}
+#fn-coffee-dialog::backdrop{background:#101823aa}
+#fn-coffee-dialog header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin:0 0 18px}
+#fn-coffee-dialog h2{font-size:22px;line-height:1.4;margin:0 0 6px;color:inherit}
+#fn-coffee-dialog p{margin:0;color:#647084}
+#fn-coffee-dialog button{flex:none;border:1px solid #dce1e8;background:#f4f6f8;color:#273547;border-radius:50%;width:36px;height:36px;padding:0;font:24px/1 system-ui;cursor:pointer}
+#fn-coffee-dialog .fn-coffee-codes{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+#fn-coffee-dialog figure{margin:0;min-width:0}
+#fn-coffee-dialog figcaption{font-weight:700;text-align:center;font-size:17px;margin-bottom:10px}
+#fn-coffee-dialog img{display:block;width:100%;height:auto;border-radius:10px}
+#fn-coffee-dialog .fn-coffee-note{margin-top:18px;font-size:13px;text-align:center}
+@media(max-width:520px){#fn-coffee-dialog{padding:18px}#fn-coffee-dialog .fn-coffee-codes{grid-template-columns:1fr}#fn-coffee{font-size:12px;padding:10px 14px}}
+@media(prefers-color-scheme:dark){#fn-coffee{background:#30271e;border-color:#6b543b;color:#ffe0b5}#fn-coffee-dialog{background:#1c222b;color:#f0f3f8;border-color:#394250}#fn-coffee-dialog p{color:#aebbd0}#fn-coffee-dialog button{background:#303946;color:#fff;border-color:#526076}}
+@media print{#fn-coffee,#fn-coffee-dialog{display:none!important}}

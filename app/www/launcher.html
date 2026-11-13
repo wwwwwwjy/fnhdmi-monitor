@@ -16,7 +16,7 @@
 </head>
 <body>
   <main class="wrap">
-    <header style="display:flex;align-items:center;gap:14px"><img src="/product-icon.png" width="64" height="64" alt=""><div><h1>飞牛HDMI动态监控</h1><p class="sub">3.0.9 · HDMI 常亮修复测试版 · 汪同学</p></div></header>
+    <header style="display:flex;align-items:center;gap:14px"><img src="/product-icon.png" width="64" height="64" alt=""><div><h1>飞牛HDMI动态监控</h1><p class="sub">3.0.10 · 正式版 · 汪同学</p></div></header>
     <section class="card">
       <div class="title"><h2>HDMI 本地显示</h2><span id="hdmiState" class="state">读取中</span></div>
       <p class="hint">单独选择当前显示器画面和下次开机的默认画面。图形画面保持常亮，不因鼠标闲置或 VNC 停用而休眠。切屏前请保存命令行中正在编辑的内容。</p>
@@ -148,5 +148,8 @@
     $('sceneMonitor').onclick=()=>chooseScene('monitor');$('sceneHalo').onclick=()=>chooseScene('haloflux');
     async function poll(){if(!busy){await refresh();await sceneRefresh()}setTimeout(poll,state?.job?.state==='running'?1000:4000)} poll();
   </script>
+<!-- FNH COFFEE START -->
+<script src="/coffee/coffee.js" defer></script>
+<!-- FNH COFFEE END -->
 </body>
 </html>

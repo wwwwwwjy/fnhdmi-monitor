@@ -3,7 +3,11 @@ import ipaddress
 from pathlib import Path
 from urllib.parse import urlsplit
 
-ASSETS={"/product-icon.png":("product-icon.png","image/png"),"/haloflux.html":("haloflux.html","text/html"),
+ASSETS={"/coffee/coffee.js":("coffee/coffee.js","text/javascript"),
+        "/coffee/coffee.css":("coffee/coffee.css","text/css"),
+        "/coffee/alipay.png":("coffee/alipay.png","image/png"),
+        "/coffee/wechat.png":("coffee/wechat.png","image/png"),
+        "/product-icon.png":("product-icon.png","image/png"),"/haloflux.html":("haloflux.html","text/html"),
         "/display-scene.js":("display-scene.js","text/javascript"),
         "/haloflux/engine.js":("haloflux/engine.js","text/javascript"),
         "/haloflux/telemetry.js":("haloflux/telemetry.js","text/javascript"),

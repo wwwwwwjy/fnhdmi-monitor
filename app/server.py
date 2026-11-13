@@ -12539,6 +12539,9 @@ class MonitorApp:
                     return
 
                 # ---- 鉴权：登录页与登录接口始终可访问（无需会话） ----
+                if path == "/product-icon.png":
+                    self._send(200, Path(app.www_dir, "product-icon.png").read_bytes(), "image/png")
+                    return
                 if path == "/login.html":
                     self._serve_html("login.html")
                     return
@@ -12571,7 +12574,7 @@ class MonitorApp:
                     self.end_headers()
                     return
                 # HALOFLUX routes: this point is after the common authentication gate.
-                if path in ("/product-icon.png", "/haloflux.html", "/display-scene.js", "/api/display/scene", "/api/display/telemetry") or path.startswith("/haloflux/"):
+                if path in ("/product-icon.png", "/haloflux.html", "/display-scene.js", "/api/display/scene", "/api/display/telemetry") or path.startswith(("/haloflux/", "/coffee/")):
                     import importlib.util
                     spec=importlib.util.spec_from_file_location("halo_routes",os.path.join(os.path.dirname(__file__),"halo_routes.py"))
                     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)

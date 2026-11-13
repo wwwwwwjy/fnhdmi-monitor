@@ -24,7 +24,14 @@ with tempfile.TemporaryDirectory(prefix="fnm-2415-") as td:
   data=path.read_bytes()
   for pattern in (rb'<!-- FNMONITOR DISPLAY VIEW START -->.*?<!-- FNMONITOR DISPLAY VIEW END -->\n',rb'/\* FNH PRODUCT UPDATE START \*/.*?/\* FNH PRODUCT UPDATE END \*/\r\n',rb'<!-- FNH PRODUCT ABOUT START -->.*?<!-- FNH PRODUCT ABOUT END -->'):
    data=__import__('re').sub(pattern,b'',data,flags=__import__('re').S)
-  return data
+  # 3.0.10 changes only product navigation, fixed support UI and favicon resources.
+  data=__import__('re').sub(rb'<!-- FNH COFFEE START -->.*?<!-- FNH COFFEE END -->\n',b'',data,flags=__import__('re').S)
+  data=__import__('re').sub(rb'<link rel="(icon|apple-touch-icon)"[^>]*>',b'',data)
+  lines=data.splitlines(keepends=True)
+  for i,line in enumerate(lines):
+   if b'<div style="display:flex;gap:8px;justify-content:center;margin-top:20px;flex-wrap:wrap">' in line:
+    lines[i]=line.replace(b'https://github.com/wwwwwwjy/fnhdmi-monitor',b'https://github.com/MisiteQ/fnmonitor')
+  return b''.join(lines)
  assert base_dashboard(old/"app/www/index.html")==base_dashboard(new/"app/www/index.html")
  assert (old/"cmd/main").read_text()==(new/"cmd/main").read_text()
  live=t/"live";shutil.copytree(old/"app",live);shutil.copy2(old/"manifest",live/"manifest")

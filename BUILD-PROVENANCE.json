@@ -1,9 +1,9 @@
 {
   "baseline": "MisiteQ/fnmonitor official 2.41.4 x86 FPK",
   "source_sha256": "1065c4d6f47862d8e01210c1f1e5cbc83896cd208ab799f881d4f77be12c26d9",
-  "custom_version": "3.0.9",
+  "custom_version": "3.0.10",
   "monitoring_data_schema": "unchanged from official 2.41.4",
-  "fix": "Disable and read back kiosk X11 screen-saver and DPMS settings; wake blanked display, reapply with existing startup/scene checks; new kiosk starts with -s 0 -dpms. VNC idle timeout remains separate.",
+  "fix": "Fixed local Alipay/WeChat support dialog; product links; remove redundant embedded favicon; retain all upstream copyright and license notices.",
   "haloflux": {
     "repository": "https://github.com/Ryder191/haloflux",
     "commit": "016bef651c4f911f08039ba159d36a6f246ff5d2",
@@ -13,5 +13,10 @@
     "modifications": "canvas-only extraction; real NAS telemetry; no audio, fonts, third-party requests or example data panels"
   },
   "product": "飞牛HDMI动态监控",
-  "developer": "汪同学"
+  "developer": "汪同学",
+  "support_assets": {
+    "alipay.png": "f9b0cc2768a43727187590b604621ba2400d86b09797104b17a4d3e5ddfb1af6",
+    "wechat.png": "09dd83213ed0ae697b151d0742c5c1aece0abe53a0eca8c224b6884d26e8ea5f"
+  },
+  "support_asset_processing": "Owner-supplied QR codes: crop surrounding shop/name text, preserve QR modules and center marks, add proportional white margin, strip EXIF/text metadata. Locally decoded payloads match originals."
 }
